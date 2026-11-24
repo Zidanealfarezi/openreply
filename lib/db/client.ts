@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/app/generated/prisma/client";
+import { withConnectionRetry } from "./retry";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -11,9 +12,19 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL environment variable is required");
   }
 
-  return new PrismaClient({
-    adapter: new PrismaPg(databaseUrl),
+  const adapter = new PrismaPg({
+    connectionString: databaseUrl,
+    keepAlive: true,
+    idleTimeoutMillis: 5_000,
   });
+
+  return new PrismaClient({ adapter }).$extends({
+    query: {
+      $allOperations({ args, query }) {
+        return withConnectionRetry(() => query(args));
+      },
+    },
+  }) as unknown as PrismaClient;
 }
 
 export function getPrisma(): PrismaClient {
