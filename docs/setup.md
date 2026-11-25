@@ -146,17 +146,18 @@ Meta has stopped offering "API setup with Instagram login" on newly created apps
 
 1. Connect a business portfolio to the app when the Unified login page asks for one.
 2. Link your Instagram professional account to a Facebook Page you manage (Instagram app, Settings, Account Center, or the Page's Linked accounts).
-3. Under Facebook Login for Business, Configurations, create a configuration. Choose a user access token, and grant `instagram_basic`, `instagram_manage_comments`, `instagram_manage_messages`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata` and `pages_messaging`. Copy its Configuration ID.
-4. Under Facebook Login for Business, Settings, add `https://your-app.vercel.app/api/instagram/callback` as a Valid OAuth Redirect URI.
-5. Set these and leave `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` empty:
+3. Add the permissions to the app first, or the configuration's permission list stays empty. In the Instagram use case, Permissions and features, click Add on `instagram_basic`, `instagram_manage_comments`, `instagram_manage_messages`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement` and `business_management`. `pages_manage_metadata` is not offered there: add the "Manage everything on your Page" use case and add it from that use case's permissions. Without it the Page cannot be subscribed to webhooks and Settings shows "Webhook pending".
+4. Under Facebook Login for Business, Configurations, create a configuration. Choose a user access token and select all eight permissions above. Copy its Configuration ID. If you edit the permissions later, the ID stays the same, but connected accounts must click Connect again to grant the new ones.
+5. Under Facebook Login for Business, Settings, add `https://your-app.vercel.app/api/instagram/callback` as a Valid OAuth Redirect URI.
+6. Set these and leave `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` empty:
 
 | Environment variable | Where it lives |
 | --- | --- |
 | `FACEBOOK_APP_ID` | App settings, Basic, App ID |
 | `FACEBOOK_APP_SECRET` | App settings, Basic, App secret |
-| `FACEBOOK_LOGIN_CONFIG_ID` | The configuration from step 3 |
+| `FACEBOOK_LOGIN_CONFIG_ID` | The configuration from step 4 |
 
-Setting `FACEBOOK_LOGIN_CONFIG_ID` is what switches OpenReply to Facebook Login. Connect Instagram then sends people to a Facebook login, where they pick the Page their Instagram account is linked to. OpenReply stores that Page's access token, which does not expire, so the token refresh cron has nothing to do for these accounts. The webhook setup in Step 8 is the same, with the callback URL configured on the Instagram webhook product.
+Setting `FACEBOOK_LOGIN_CONFIG_ID` is what switches OpenReply to Facebook Login. Connect Instagram then sends people to a Facebook login, where they pick the Page their Instagram account is linked to. OpenReply stores that Page's access token, which does not expire, so the token refresh cron has nothing to do for these accounts. The webhook setup in Step 8 is the same: in the Instagram use case, API setup with Unified login, Configure webhooks. Subscribe to `comments`, `messages` and `messaging_postbacks`; button taps in DMs arrive as postbacks.
 
 ### Step 6: Add your Instagram account as a tester, and accept the invite
 
