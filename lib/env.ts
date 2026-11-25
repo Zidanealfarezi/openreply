@@ -26,6 +26,16 @@ export function getEncryptionKeyHex(): string {
   return value;
 }
 
+/**
+ * Which Meta login the app uses to connect Instagram accounts. Instagram Login
+ * (the default) needs INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET. Meta no longer
+ * offers Instagram Login setup on newly created apps, only Facebook Login for
+ * Business ("Unified login"); setting FACEBOOK_LOGIN_CONFIG_ID switches to it.
+ */
+export function isFacebookLoginMode(): boolean {
+  return Boolean(process.env.FACEBOOK_LOGIN_CONFIG_ID);
+}
+
 // Env vars that must be present before an Instagram OAuth round trip can even
 // start. Checked up front so a self-hoster with a half-filled .env gets the
 // variable names back instead of an unhandled throw from requireEnv().
@@ -36,8 +46,19 @@ const INSTAGRAM_OAUTH_ENV = [
   "NEXTAUTH_SECRET",
 ] as const;
 
+const FACEBOOK_OAUTH_ENV = [
+  "FACEBOOK_APP_ID",
+  "FACEBOOK_APP_SECRET",
+  "FACEBOOK_LOGIN_CONFIG_ID",
+  "ENCRYPTION_KEY",
+  "NEXTAUTH_SECRET",
+] as const;
+
 export function getMissingInstagramOAuthEnv(): string[] {
-  return INSTAGRAM_OAUTH_ENV.filter((name) => {
+  const required: readonly string[] = isFacebookLoginMode()
+    ? FACEBOOK_OAUTH_ENV
+    : INSTAGRAM_OAUTH_ENV;
+  return required.filter((name) => {
     const value = process.env[name];
     if (!value) return true;
     // A malformed key fails later inside encryptToken, after the user has
@@ -56,8 +77,13 @@ export const serverEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   ENCRYPTION_KEY: z.string().regex(HEX_32_BYTE),
-  INSTAGRAM_APP_ID: z.string().min(1),
-  INSTAGRAM_APP_SECRET: z.string().min(1),
+  // Instagram Login needs the INSTAGRAM_* pair; Facebook Login needs
+  // FACEBOOK_APP_ID and FACEBOOK_LOGIN_CONFIG_ID. FACEBOOK_APP_SECRET is
+  // required either way, since it verifies webhook signatures.
+  INSTAGRAM_APP_ID: z.string().min(1).optional(),
+  INSTAGRAM_APP_SECRET: z.string().min(1).optional(),
+  FACEBOOK_APP_ID: z.string().min(1).optional(),
+  FACEBOOK_LOGIN_CONFIG_ID: z.string().min(1).optional(),
   FACEBOOK_APP_SECRET: z.string().min(1),
   WEBHOOK_VERIFY_TOKEN: z.string().min(1),
 });

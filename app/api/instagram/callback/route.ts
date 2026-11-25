@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { getBaseUrl } from "@/lib/env";
+import { getBaseUrl, isFacebookLoginMode } from "@/lib/env";
 import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
-import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";
+import {
+  getFacebookLoginConnection,
+  getLongLivedToken,
+  getUserInfo,
+  subscribeInstagramAccountToWebhooks,
+  type InstagramUser,
+} from "@/lib/meta/client";
 import {
   encryptToken,
   exchangeCodeForToken,
@@ -47,9 +53,27 @@ export async function GET(request: NextRequest) {
       code,
       redirectUri
     );
-    const { accessToken: longLivedToken, expiresIn } =
-      await getLongLivedToken(shortLivedToken);
-    const userInfo = await getUserInfo(longLivedToken);
+
+    // The token stored for the account, and when it lapses (null = never).
+    let storedToken: string;
+    let tokenExpiresAt: Date | null;
+    let userInfo: InstagramUser;
+
+    if (isFacebookLoginMode()) {
+      // Facebook Login: what gets stored is the Page token of the Page the
+      // Instagram account is linked to. Messaging runs through that Page.
+      const connection = await getFacebookLoginConnection(shortLivedToken);
+      storedToken = connection.pageAccessToken;
+      tokenExpiresAt = null;
+      userInfo = connection.instagram;
+    } else {
+      const { accessToken: longLivedToken, expiresIn } =
+        await getLongLivedToken(shortLivedToken);
+      storedToken = longLivedToken;
+      tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+      userInfo = await getUserInfo(longLivedToken);
+    }
+
     // Webhooks and the messaging API key off the professional account ID
     // (user_id), not the app-scoped `id`. Store user_id so comment webhooks
     // can be matched back to this account. Fall back to id if user_id is
@@ -66,14 +90,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const encryptedToken = encryptToken(longLivedToken);
-    const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+    const encryptedToken = encryptToken(storedToken);
 
     let webhookSubscribed = false;
     try {
       const subscription = await subscribeInstagramAccountToWebhooks(
         instagramId,
-        longLivedToken
+        storedToken
       );
       webhookSubscribed = Boolean(subscription.success);
     } catch (subscriptionError) {

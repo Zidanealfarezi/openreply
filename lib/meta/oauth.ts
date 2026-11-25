@@ -5,7 +5,12 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "crypto";
-import { getEncryptionKeyHex, requireEnv } from "@/lib/env";
+import {
+  getEncryptionKeyHex,
+  getMetaGraphApiVersion,
+  isFacebookLoginMode,
+  requireEnv,
+} from "@/lib/env";
 
 // Instagram API with Instagram Login authorizes on www.instagram.com. The old
 // api.instagram.com/oauth/authorize host belonged to the retired Basic Display
@@ -75,6 +80,21 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
 }
 
 export function getAuthorizationUrl(redirectUri: string, state: string): string {
+  if (isFacebookLoginMode()) {
+    // Facebook Login for Business: permissions come from the login
+    // configuration, so no scope here. The override makes a configuration
+    // whose default is a token response hand back a code instead.
+    const params = new URLSearchParams({
+      client_id: requireEnv("FACEBOOK_APP_ID"),
+      redirect_uri: redirectUri,
+      config_id: requireEnv("FACEBOOK_LOGIN_CONFIG_ID"),
+      response_type: "code",
+      override_default_response_type: "true",
+      state,
+    });
+    return `https://www.facebook.com/${getMetaGraphApiVersion()}/dialog/oauth?${params.toString()}`;
+  }
+
   const params = new URLSearchParams({
     client_id: requireEnv("INSTAGRAM_APP_ID"),
     redirect_uri: redirectUri,
@@ -91,6 +111,26 @@ export async function exchangeCodeForToken(
   code: string,
   redirectUri: string
 ): Promise<{ accessToken: string; userId: string }> {
+  if (isFacebookLoginMode()) {
+    const url = new URL(
+      `https://graph.facebook.com/${getMetaGraphApiVersion()}/oauth/access_token`
+    );
+    url.searchParams.set("client_id", requireEnv("FACEBOOK_APP_ID"));
+    url.searchParams.set("client_secret", requireEnv("FACEBOOK_APP_SECRET"));
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("code", code);
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    if (!response.ok || data.error) {
+      throw new Error(
+        `Token exchange failed: ${data.error?.message || JSON.stringify(data)}`
+      );
+    }
+    // The Facebook token response carries no user id; callers read the
+    // Instagram account off the Page instead.
+    return { accessToken: data.access_token, userId: "" };
+  }
+
   const body = new URLSearchParams({
     client_id: requireEnv("INSTAGRAM_APP_ID"),
     client_secret: requireEnv("INSTAGRAM_APP_SECRET"),

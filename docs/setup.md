@@ -140,6 +140,24 @@ The Instagram app ID is not the same number as the Facebook App ID shown on the 
 
 OpenReply verifies webhook signatures against both `FACEBOOK_APP_SECRET` and `INSTAGRAM_APP_SECRET`, so you do not have to guess which one Meta signs with. Set both.
 
+### Newer apps: Unified login (Facebook Login for Business)
+
+Meta has stopped offering "API setup with Instagram login" on newly created apps. If the Instagram API use case on your app says *API setup with Instagram login is not available for newer apps* and only shows "API setup with Unified login", there is no Instagram app ID or secret to collect. Use Facebook Login instead:
+
+1. Connect a business portfolio to the app when the Unified login page asks for one.
+2. Link your Instagram professional account to a Facebook Page you manage (Instagram app, Settings, Account Center, or the Page's Linked accounts).
+3. Under Facebook Login for Business, Configurations, create a configuration. Choose a user access token, and grant `instagram_basic`, `instagram_manage_comments`, `instagram_manage_messages`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata` and `pages_messaging`. Copy its Configuration ID.
+4. Under Facebook Login for Business, Settings, add `https://your-app.vercel.app/api/instagram/callback` as a Valid OAuth Redirect URI.
+5. Set these and leave `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` empty:
+
+| Environment variable | Where it lives |
+| --- | --- |
+| `FACEBOOK_APP_ID` | App settings, Basic, App ID |
+| `FACEBOOK_APP_SECRET` | App settings, Basic, App secret |
+| `FACEBOOK_LOGIN_CONFIG_ID` | The configuration from step 3 |
+
+Setting `FACEBOOK_LOGIN_CONFIG_ID` is what switches OpenReply to Facebook Login. Connect Instagram then sends people to a Facebook login, where they pick the Page their Instagram account is linked to. OpenReply stores that Page's access token, which does not expire, so the token refresh cron has nothing to do for these accounts. The webhook setup in Step 8 is the same, with the callback URL configured on the Instagram webhook product.
+
 ### Step 6: Add your Instagram account as a tester, and accept the invite
 
 This is the step people miss, and it produces the error "Insufficient Developer Role" on the Instagram login screen. In development, only accounts that have a role on your app can connect. Even your own account has to be added and accept.
